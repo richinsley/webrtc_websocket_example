@@ -1,0 +1,109 @@
+<html>
+  <head>
+    <title>Pion WebRTC Websocket signaling example</title>
+    <script>
+      // our websocket for signaling
+      var ws;    
+
+      // the peerconnection object
+      const pc = new RTCPeerConnection({
+        iceServers: [{
+          urls: 'stun:stun.l.google.com:19302'
+        }]
+      })
+
+      let log = msg => {
+        console.log(msg)
+      }
+
+      ////////////////////////////////////////////////
+      // setup peer connection
+      ////////////////////////////////////////////////
+
+      pc.ontrack = event => {
+        const el = document.createElement(event.track.kind)
+        el.srcObject = event.streams[0]
+        el.autoplay = true
+        el.controls = false
+        document.getElementById('remoteVideos').appendChild(el)
+      }
+      
+      pc.oniceconnectionstatechange = e => log(pc.iceConnectionState)
+      pc.onicecandidate = event => {
+        if (event.candidate === null) {
+          // document.getElementById('localSessionDescription').value = btoa(JSON.stringify(pc.localDescription))
+        }
+      }
+      
+      // Offer to receive 1 audio, and 1 video tracks
+      pc.addTransceiver('audio', {
+        'direction': 'recvonly'
+      })
+      pc.addTransceiver('video', {
+        'direction': 'recvonly'
+      })
+      pc.createOffer().then(d => pc.setLocalDescription(d)).catch(log)
+      
+      window.startSession = () => { 
+          document.getElementById('startSerssionButton').disabled = true
+          console.log("Opening")
+          // create the URL to the echo ws based off the host addr
+          var loc = window.location, new_uri;
+          if (loc.protocol === "https:") {
+              new_uri = "wss:";
+          } else {
+              new_uri = "ws:";
+          }
+          new_uri += "//" + loc.host;
+          new_uri += loc.pathname + "echo";
+          ws = new WebSocket(new_uri);
+
+        ws.onopen = function(evt) {
+          console.log("OPEN");
+          ws.send(btoa(JSON.stringify(pc.localDescription)))
+        }
+        ws.onmessage = function(evt) {
+          console.log("RESPONSE: " + evt.data);
+          const sd = evt.data
+          if (sd === '') {
+            return alert('Session Description must not be empty')
+          }
+          try {
+            pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(sd))))
+          } catch (e) {
+            alert(e)
+          }
+        }
+      }
+    </script>
+    <style>
+      h1 {
+        text-align: center;
+      }
+      #header {
+        width: 100%;
+        background-color: powderblue;
+        text-align: center;
+      }
+      #remoteVideos {
+        height: 100%;
+        width: 100%;
+        background-color: black;
+      }
+      #startSerssionButton {
+        width: 80%;
+        background-color: green;
+        border-radius: 6px;
+        color: #eeeeee;
+        text-align: center;
+        font-size: 18px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <div id="header">
+    <h1>Pion WebRTC Websocket signaling example</h1>
+    <button id="startSerssionButton" onclick="window.startSession()">Start Session</button>
+  </div>
+  <div id="remoteVideos"></div>
+</html>
